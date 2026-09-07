@@ -27,7 +27,7 @@ int ciclo = 0;    // Contador de ciclos.
 void setup() {
   // Inicia la comunicación serial para mostrar información de diagnóstico.
   Serial.begin(115200);
-  while (!Serial);
+  while (!Serial); //Quitar si no se va a usar un monitor serial (PC)
   // Configura el LED integrado como salida.
   pinMode(LED_BUILTIN, OUTPUT);
 
@@ -79,12 +79,12 @@ void loop() {
   if (flag) {
     digitalWrite(LED_BUILTIN, LOW);
     flag = 0;
-    Serial.println(" ENCENDIDO ");
+    Serial.println(" APAGADO ");
   }
   else {
     digitalWrite(LED_BUILTIN, HIGH);
     flag = 1;
-    Serial.println(" APAGADO ");
+    Serial.println(" ENCENDIDO ");
   }
 
   // Convierte el número actual a texto para enviarlo por LoRaWAN.
