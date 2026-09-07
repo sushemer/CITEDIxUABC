@@ -27,6 +27,7 @@ int ciclo = 0;    // Contador de ciclos.
 void setup() {
   // Inicia la comunicación serial para mostrar información de diagnóstico.
   Serial.begin(115200);
+  while (!Serial);
   // Configura el LED integrado como salida.
   pinMode(LED_BUILTIN, OUTPUT);
 
@@ -117,7 +118,7 @@ void loop() {
 
   //Después del uplink se comprueba si TTN envió algún mensaje de bajada (downlink).
   if (!modem.available()) {
-    Serial.println("No downlink message received at this time.");
+    Serial.println("No se recibio mensaje de bajada (dowlink).");
     return;
   }
 
