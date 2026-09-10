@@ -1,0 +1,3 @@
+// Es necesario poner sus propias credenciales
+#define SECRET_APP_EUI "XXXXXXXXXXXXXXXXX"
+#define SECRET_APP_KEY "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
