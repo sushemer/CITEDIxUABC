@@ -1,0 +1,344 @@
+let
+    // CONFIGURACIÓN GENERAL
+    Token = "PEGA_AQUI_TU_TOKEN",
+
+    // Cantidad de días de historial que se solicitarán.
+    DiasHistorial = 1,
+
+    // DISPOSITIVOS
+    // DeviceId = UUID de Datacake
+    // Fields   = identificadores EXACTOS de los Fields de Datacake
+    Dispositivos = {
+        [
+            DeviceName = "srs02",
+            DeviceType = "SRS",
+            DeviceId = "UUID_SRS_AQUI",
+            Fields = {
+                "TEMPERATURE",
+                "HUMIDITY",
+                "BATTERY_VOLTAGE",
+                "MOTION_EVENT_STATE"
+            }
+        ],
+        [
+            DeviceName = "MKR1300_Prueba",
+            DeviceType = "MKR WAN 1300",
+            DeviceId = "UUID_MKR_AQUI",
+            Fields = {
+                "COUNTER_1"
+            }
+        ],
+        [
+            DeviceName = "lds02",
+            DeviceType = "LDS02",
+            DeviceId = "UUID_LDS02_AQUI",
+            Fields = {
+                "CAMPO_PUERTA"
+            }
+        ]
+
+    },
+
+   // RANGO DE TIEMPO
+
+    FinDT = DateTimeZone.UtcNow() - #duration(0, 0, 1, 0),
+
+    InicioDT = FinDT - #duration(DiasHistorial, 0, 0, 0),
+
+    Inicio =
+        DateTimeZone.ToText(
+            InicioDT,
+            "yyyy-MM-ddTHH:mm:sszzz"
+        ),
+
+    Fin =
+        DateTimeZone.ToText(
+            FinDT,
+            "yyyy-MM-ddTHH:mm:sszzz"
+        ),
+
+
+    // FUNCIÓN PARA CONSULTAR UN DISPOSITIVO
+    fnDatacakeHistory =
+        (
+            DeviceName as text,
+            DeviceType as text,
+            DeviceId as text,
+            Fields as list
+        )
+        as table =>
+
+        let
+
+            // Convierte:
+            // {"TEMPERATURE", "HUMIDITY"}
+            //
+            // en:
+            // "TEMPERATURE","HUMIDITY"
+
+            FieldsGraphQL =
+                Text.Combine(
+                    List.Transform(
+                        Fields,
+                        each """" & _ & """"
+                    ),
+                    ","
+                ),
+
+
+            // Consulta GraphQL
+            Consulta =
+                "query {" &
+                " device(deviceId: """ & DeviceId & """) {" &
+                "   history(" &
+                "     fields:[" & FieldsGraphQL & "]," &
+                "     timerangestart:""" & Inicio & """," &
+                "     timerangeend:""" & Fin & """," &
+                "     resolution:""raw""" &
+                "   )" &
+                " }" &
+                "}",
+
+
+            // Construye el cuerpo JSON
+            Cuerpo =
+                Json.FromValue(
+                    [
+                        query = Consulta
+                    ]
+                ),
+
+
+            // Consulta Datacake
+            Respuesta =
+                Json.Document(
+                    Web.Contents(
+                        "https://api.datacake.co/graphql/",
+                        [
+                            Headers = [
+                                #"Content-Type" = "application/json",
+                                Authorization = "Token " & Token
+                            ],
+                            Content = Cuerpo
+                        ]
+                    )
+                ),
+
+
+            // Obtiene el histórico en formato JSON
+            HistoricoTexto = Respuesta[data][device][history],
+
+
+            // Convierte el JSON a registros
+            HistoricoJSON =
+                Json.Document(
+                    Text.ToBinary(HistoricoTexto)
+                ),
+
+
+            // Convierte los registros a tabla
+            TablaBase =
+                if List.Count(HistoricoJSON) = 0 then
+                    #table(
+                        {"time"},
+                        {}
+                    )
+                else
+                    Table.FromRecords(HistoricoJSON),
+
+
+            // Convierte UTC a hora local
+            HoraLocal =
+                if Table.HasColumns(TablaBase, "time") then
+                    Table.TransformColumns(
+                        TablaBase,
+                        {
+                            {
+                                "time",
+                                each
+                                    DateTimeZone.RemoveZone(
+                                        DateTimeZone.ToLocal(
+                                            DateTimeZone.From(_)
+                                        )
+                                    ),
+                                type datetime
+                            }
+                        }
+                    )
+
+                else
+                    TablaBase,
+
+
+            // Añade nombre del dispositivo
+            ConDeviceName =
+                Table.AddColumn(
+                    HoraLocal,
+                    "DeviceName",
+                    each DeviceName,
+                    type text
+                ),
+
+
+            // Añade tipo de dispositivo
+            ConDeviceType =
+                Table.AddColumn(
+                    ConDeviceName,
+                    "DeviceType",
+                    each DeviceType,
+                    type text
+                ),
+
+
+            // Determina qué campos realmente llegaron
+            CamposDisponibles =
+                List.Intersect(
+                    {
+                        Fields,
+                        Table.ColumnNames(ConDeviceType)
+                    }
+                ),
+
+
+            // Convierte múltiples columnas de sensores
+            // a formato Campo / Valor
+            Normalizada =
+                if List.Count(CamposDisponibles) = 0 then
+
+                    #table(
+                        {
+                            "time",
+                            "DeviceName",
+                            "DeviceType",
+                            "Campo",
+                            "Valor"
+                        },
+                        {}
+                    )
+
+                else
+
+                    Table.Unpivot(
+                        ConDeviceType,
+                        CamposDisponibles,
+                        "Campo",
+                        "Valor"
+                    ),
+
+
+            // Elimina registros sin valor
+            SinNulos =
+                Table.SelectRows(
+                    Normalizada,
+                    each [Valor] <> null
+                ),
+
+
+            // Valores numéricos
+            ValorNumerico =
+                Table.AddColumn(
+                    SinNulos,
+                    "ValorNumerico",
+                    each
+                        if Value.Is([Valor], type number) then
+                            Number.From([Valor])
+                        else
+                            null,
+                    type nullable number
+                ),
+
+
+            // Valores booleanos
+            ValorBooleano =
+                Table.AddColumn(
+                    ValorNumerico,
+                    "ValorBooleano",
+                    each
+                        if Value.Is([Valor], type logical) then
+                            [Valor]
+                        else
+                            null,
+                    type nullable logical
+                ),
+
+
+            // Representación en texto
+            ValorTexto =
+                Table.AddColumn(
+                    ValorBooleano,
+                    "ValorTexto",
+                    each Text.From([Valor]),
+                    type text
+                ),
+
+
+            // Quitamos la columna genérica Valor
+            SinValorOriginal =
+                Table.RemoveColumns(
+                    ValorTexto,
+                    {"Valor"}
+                ),
+
+
+            // Renombramos time
+            Renombrada =
+                Table.RenameColumns(
+                    SinValorOriginal,
+                    {
+                        {"time", "FechaHora"}
+                    }
+                )
+
+        in
+            Renombrada,
+
+
+    // FUNCIÓN PARA TODOS LOS DISPOSITIVOS
+    Tablas =
+        List.Transform(
+            Dispositivos,
+            each
+                fnDatacakeHistory(
+                    _[DeviceName],
+                    _[DeviceType],
+                    _[DeviceId],
+                    _[Fields]
+                )
+        ),
+
+
+    // Une todos los resultados
+    Resultado =
+    Table.Combine(Tablas),
+
+    // Fuerza los tipos después de combinar todos los dispositivos
+    TiposFinales =
+        Table.TransformColumnTypes(
+            Resultado,
+            {
+                {"FechaHora", type datetime},
+                {"DeviceName", type text},
+                {"DeviceType", type text},
+                {"Campo", type text},
+                {"ValorNumerico", type number},
+                {"ValorBooleano", type logical},
+                {"ValorTexto", type text}
+            }
+        ),
+
+    ColumnasOrdenadas =
+        Table.ReorderColumns(
+            TiposFinales,
+            {
+                "FechaHora",
+                "DeviceName",
+                "DeviceType",
+                "Campo",
+                "ValorNumerico",
+                "ValorBooleano",
+                "ValorTexto"
+            }
+        )
+
+    in
+        ColumnasOrdenadas

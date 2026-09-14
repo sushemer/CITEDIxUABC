@@ -878,53 +878,22 @@ if (port === 100) {
 		{
 			key: [0x53],
 			fn: function(arg) { 
-				if(!decoded_data.hasOwnProperty('pir_mode')) {
+				if (!decoded_data.hasOwnProperty('pir_mode')) {
 					decoded_data['pir_mode'] = {};
 				}
-				var val = decode_field(arg, 1, 7, 7, "unsigned");
-				{switch (val){
-					case 0:
-						decoded_data['pir_mode']['motion_count_reported'] = "Disabled";
-						break;
-					case 1:
-						decoded_data['pir_mode']['motion_count_reported'] = "Enabled";
-						break;
-					default:
-						decoded_data['pir_mode']['motion_count_reported'] = "Invalid";
-				}}
-				var val = decode_field(arg, 1, 6, 6, "unsigned");
-				{switch (val){
-					case 0:
-						decoded_data['pir_mode']['motion_state_reported'] = "Disabled";
-						break;
-					case 1:
-						decoded_data['pir_mode']['motion_state_reported'] = "Enabled";
-						break;
-					default:
-						decoded_data['pir_mode']['motion_state_reported'] = "Invalid";
-				}}
-				var val = decode_field(arg, 1, 1, 1, "unsigned");
-				{switch (val){
-					case 0:
-						decoded_data['pir_mode']['event_transmission_enabled'] = "Disabled";
-						break;
-					case 1:
-						decoded_data['pir_mode']['event_transmission_enabled'] = "Enabled";
-						break;
-					default:
-						decoded_data['pir_mode']['event_transmission_enabled'] = "Invalid";
-				}}
-				var val = decode_field(arg, 1, 0, 0, "unsigned");
-				{switch (val){
-					case 0:
-						decoded_data['pir_mode']['transducer_enabled'] = "Disabled";
-						break;
-					case 1:
-						decoded_data['pir_mode']['transducer_enabled'] = "Enabled";
-						break;
-					default:
-						decoded_data['pir_mode']['transducer_enabled'] = "Invalid";
-				}}
+
+				decoded_data['pir_mode']['motion_count_reported'] =
+					decode_field(arg, 1, 0, 0, "unsigned");
+
+				decoded_data['pir_mode']['motion_state_reported'] =
+					decode_field(arg, 1, 1, 1, "unsigned");
+
+				decoded_data['pir_mode']['event_transmission_enabled'] =
+					decode_field(arg, 1, 6, 6, "unsigned");
+
+				decoded_data['pir_mode']['transducer_enabled'] =
+					decode_field(arg, 1, 7, 7, "unsigned");
+
 				return 1;
 			}
 		},
@@ -1390,5 +1359,47 @@ if (port === 5) {
         console.log(JSON.stringify(e));
     }
 
-    return decoded_data;
+    var datacakeFields = [];
+
+	// Temperatura
+	if (decoded_data.hasOwnProperty("TEMPERATURE")) {
+		datacakeFields.push({
+			field: "TEMPERATURE",
+			value: Number(decoded_data["TEMPERATURE"])
+		});
+	}
+
+	// Humedad
+	if (decoded_data.hasOwnProperty("HUMIDITY")) {
+		datacakeFields.push({
+			field: "HUMIDITY",
+			value: Number(decoded_data["HUMIDITY"])
+		});
+	}
+
+	// Batería
+	if (decoded_data.hasOwnProperty("battery_voltage")) {
+		datacakeFields.push({
+			field: "BATTERY_VOLTAGE",
+			value: Number(decoded_data["battery_voltage"])
+		});
+	}
+
+	// Estado de movimiento
+	if (decoded_data.hasOwnProperty("motion_event_state")) {
+		datacakeFields.push({
+			field: "MOTION_EVENT_STATE",
+			value: decoded_data["motion_event_state"]
+		});
+	}
+
+	// Contador de movimiento
+	if (decoded_data.hasOwnProperty("motion_event_count")) {
+		datacakeFields.push({
+			field: "MOTION_EVENT_COUNT",
+			value: Number(decoded_data["motion_event_count"])
+		});
+	}
+
+	return datacakeFields;
 }

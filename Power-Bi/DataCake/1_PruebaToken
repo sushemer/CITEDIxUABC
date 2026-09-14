@@ -1,0 +1,32 @@
+let
+    Token = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+
+    Consulta = "
+        query {
+            user {
+                id
+            }
+        }
+    ",
+
+    Cuerpo = Json.FromValue([
+        query = Consulta
+    ]),
+
+    Respuesta = Json.Document(
+        Web.Contents(
+            "https://api.datacake.co/graphql/",
+            [
+                Headers = [
+                    #"Content-Type" = "application/json",
+                    Authorization = "Token " & Token
+                ],
+                Content = Cuerpo
+            ]
+        )
+    ),
+    data = Respuesta[data],
+    user = data[user]
+
+in
+    user

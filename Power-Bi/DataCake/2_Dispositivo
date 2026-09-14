@@ -1,0 +1,44 @@
+let
+    Token = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+    DeviceId = "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
+    Consulta = "
+        query GetCounter($deviceId: String!) {
+            device(deviceId: $deviceId) {
+                id
+                verboseName
+                currentMeasurement(fieldName: ""VARIABLE"") {
+                    value
+                    modified
+                    field {
+                        fieldName
+                        verboseFieldName
+                    }
+                }
+            }
+        }
+    ",
+
+    Variables = [
+        deviceId = DeviceId
+    ],
+
+    Cuerpo = Json.FromValue([
+        query = Consulta,
+        variables = Variables
+    ]),
+
+    Respuesta = Json.Document(
+        Web.Contents(
+            "https://api.datacake.co/graphql/",
+            [
+                Headers = [
+                    #"Content-Type" = "application/json",
+                    Authorization = "Token " & Token
+                ],
+                Content = Cuerpo
+            ]
+        )
+    )
+
+in
+    Respuesta

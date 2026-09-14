@@ -1,0 +1,52 @@
+let
+    Token = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+    DeviceId = "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
+    FieldId = "XXXXXX",
+
+        // Fin = momento actual menos 1 minuto.
+    FinDT = DateTimeZone.UtcNow() - #duration(0, 0, 1, 0),
+
+    // Inicio = 24 horas antes.
+    InicioDT = FinDT - #duration(1, 0, 0, 0),
+
+    Inicio = DateTimeZone.ToText(
+        InicioDT,
+        "yyyy-MM-ddTHH:mm:sszzz"
+    ),
+
+    Fin = DateTimeZone.ToText(
+        FinDT,
+        "yyyy-MM-ddTHH:mm:sszzz"
+    ),
+
+    Consulta =
+        "query {" &
+        " device(deviceId: """ & DeviceId & """) {" &
+        "   history(" &
+        "     fields:[""" & FieldId & """]," &
+        "     timerangestart:""" & Inicio & """," &
+        "     timerangeend:""" & Fin & """," &
+        "     resolution:""raw""" &
+        "   )" &
+        " }" &
+        "}",
+
+    Cuerpo = Json.FromValue([
+        query = Consulta
+    ]),
+
+    Respuesta = Json.Document(
+        Web.Contents(
+            "https://api.datacake.co/graphql/",
+            [
+                Headers = [
+                    #"Content-Type" = "application/json",
+                    Authorization = "Token " & Token
+                ],
+                Content = Cuerpo
+            ]
+        )
+    )
+
+in
+    Respuesta

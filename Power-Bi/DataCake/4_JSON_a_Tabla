@@ -1,0 +1,71 @@
+let
+    Token = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+    DeviceId = "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
+    FieldId = "TEMPERATURE",
+    
+    // Fin = momento actual menos 1 minuto.
+    FinDT = DateTimeZone.UtcNow() - #duration(0, 0, 1, 0),
+
+    // Inicio = 24 horas antes.
+    InicioDT = FinDT - #duration(1, 0, 0, 0),
+
+    Inicio = DateTimeZone.ToText(
+        InicioDT,
+        "yyyy-MM-ddTHH:mm:sszzz"
+    ),
+
+    Fin = DateTimeZone.ToText(
+        FinDT,
+        "yyyy-MM-ddTHH:mm:sszzz"
+    ),
+
+    Consulta =
+        "query {" &
+        " device(deviceId: """ & DeviceId & """) {" &
+        "   history(" &
+        "     fields:[""" & FieldId & """]," &
+        "     timerangestart:""" & Inicio & """," &
+        "     timerangeend:""" & Fin & """," &
+        "     resolution:""raw""" &
+        "   )" &
+        " }" &
+        "}",
+
+    Cuerpo = Json.FromValue([
+        query = Consulta
+    ]),
+
+    Respuesta = Json.Document(
+        Web.Contents(
+            "https://api.datacake.co/graphql/",
+            [
+                Headers = [
+                    #"Content-Type" = "application/json",
+                    Authorization = "Token " & Token
+                ],
+                Content = Cuerpo
+            ]
+        )
+    ),
+    HistoricoTexto = Respuesta[data][device][history],
+
+    // Convierte el texto JSON en una lista de registros
+    HistoricoJSON = Json.Document(
+        Text.ToBinary(HistoricoTexto)
+    ),
+
+    // Convierte la lista en una tabla
+    Tabla = Table.FromRecords(HistoricoJSON),
+
+    // Define los tipos correctos de las columnas
+    // Ejemplo de SRS
+    Tipos = Table.TransformColumnTypes(
+        Tabla,
+        {
+            {"time", type datetimezone},
+            {FieldId, type number}
+        }
+    )
+
+in
+    Tipos
